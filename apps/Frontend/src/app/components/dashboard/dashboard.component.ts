@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 
@@ -8,47 +8,67 @@ import { Router } from '@angular/router';
   imports: [CommonModule],
   template: `
     <div style="padding: 40px; text-align: center;">
-      <h2>Panel de Control (Dashboard)</h2>
       <p>Has iniciado sesión correctamente.</p>
-      <p style="color: red; font-weight: bold;">Tu sesión se cerrará automáticamente en cuanto el token venza...</p>
+      
+      <!-- Botón de Cerrar Sesión -->
+      <button (click)="cerrarSesion()" style="padding: 10px 20px; background-color: #ef4444; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px;">
+        Cerrar Sesión
+      </button>
     </div>
   `,
   styleUrl: './dashboard.component.css'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private router = inject(Router);
+  private intervalo: any;
 
   ngOnInit() {
-    this.validarTokenYExpiracion();
+    this.intervalo = setInterval(() => {
+      this.verificarExpiracion();
+    }, 1000);
   }
 
-  validarTokenYExpiracion() {
+  ngOnDestroy() {
+    if (this.intervalo) {
+      clearInterval(this.intervalo);
+    }
+  }
+
+  cerrarSesion() {
+    if (this.intervalo) {
+      clearInterval(this.intervalo);
+    }
+    localStorage.removeItem('token');
+  
+    this.router.navigate(['/login']);
+  }
+
+  verificarExpiracion() {
     const token = localStorage.getItem('token');
+    
     if (!token) {
-      this.router.navigate(['/login']);
+      this.salirAlLogin();
       return;
     }
 
     try {
       const payloadBase64 = token.split('.')[1];
       const payloadDecoded = JSON.parse(atob(payloadBase64));
-      
       const expiracionMs = payloadDecoded.exp * 1000;
-      const tiempoRestante = expiracionMs - Date.now();
-
-      if (tiempoRestante <= 0) {
-        localStorage.removeItem('token');
-        this.router.navigate(['/login']);
-      } else {
-
-        setTimeout(() => {
-          localStorage.removeItem('token');
-          this.router.navigate(['/login']);
-        }, tiempoRestante);
+      
+      if (Date.now() >= expiracionMs) {
+        this.salirAlLogin();
       }
     } catch (error) {
-      localStorage.removeItem('token');
-      this.router.navigate(['/login']);
+      this.salirAlLogin();
     }
+  }
+
+  salirAlLogin() {
+    if (this.intervalo) {
+      clearInterval(this.intervalo);
+    }
+    localStorage.removeItem('token');
+    this.router.navigate(['/login']);
   }
 }
